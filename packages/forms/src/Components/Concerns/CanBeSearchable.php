@@ -3,6 +3,7 @@
 namespace Filament\Forms\Components\Concerns;
 
 use Closure;
+use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Contracts\Support\Htmlable;
 
 trait CanBeSearchable
@@ -20,6 +21,29 @@ trait CanBeSearchable
     protected bool | Closure $shouldSearchLabels = true;
 
     protected bool | Closure $shouldSearchValues = false;
+
+    /**
+     * @var array<string> | Arrayable | Closure | null
+     */
+    protected array | Arrayable | Closure | null $customSearchFields = null;
+
+    public function customSearchFields(array | Arrayable | Closure | null $customSearchFields): static
+    {
+        $this->customSearchFields = $customSearchFields;
+
+        return $this;
+    }
+
+    public function getCustomSearchFields(): array
+    {
+        $customSearchFields = $this->evaluate($this->customSearchFields) ?? [];
+
+        if ($customSearchFields instanceof Arrayable) {
+            $customSearchFields = $customSearchFields->toArray();
+        }
+
+        return $customSearchFields;
+    }
 
     public function searchable(bool | Closure $condition = true): static
     {
@@ -98,6 +122,7 @@ trait CanBeSearchable
         return [
             ...($this->shouldSearchLabels() ? ['label'] : []),
             ...($this->shouldSearchValues() ? ['value'] : []),
+            ...($this->getCustomSearchFields()),
         ];
     }
 

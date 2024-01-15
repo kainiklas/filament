@@ -95,6 +95,8 @@ class Select extends Field implements Contracts\CanDisableOptions, Contracts\Has
 
     protected ?Closure $transformOptionsForJsUsing = null;
 
+    protected ?Closure $customPropertiesForJsUsing = null;
+
     /**
      * @var array<string> | null
      */
@@ -121,7 +123,7 @@ class Select extends Field implements Contracts\CanDisableOptions, Contracts\Has
         $this->default(static fn (Select $component): ?array => $component->isMultiple() ? [] : null);
 
         $this->afterStateHydrated(static function (Select $component, $state): void {
-            if (! $component->isMultiple()) {
+            if (!$component->isMultiple()) {
                 return;
             }
 
@@ -136,18 +138,18 @@ class Select extends Field implements Contracts\CanDisableOptions, Contracts\Has
             $options = $component->getOptions();
 
             foreach ($options as $groupedOptions) {
-                if (! is_array($groupedOptions)) {
+                if (!is_array($groupedOptions)) {
                     continue;
                 }
 
-                if (! array_key_exists($value, $groupedOptions)) {
+                if (!array_key_exists($value, $groupedOptions)) {
                     continue;
                 }
 
                 return $groupedOptions[$value];
             }
 
-            if (! array_key_exists($value, $options)) {
+            if (!array_key_exists($value, $options)) {
                 return $value;
             }
 
@@ -161,11 +163,11 @@ class Select extends Field implements Contracts\CanDisableOptions, Contracts\Has
 
             foreach ($values as $value) {
                 foreach ($options as $groupedOptions) {
-                    if (! is_array($groupedOptions)) {
+                    if (!is_array($groupedOptions)) {
                         continue;
                     }
 
-                    if (! array_key_exists($value, $groupedOptions)) {
+                    if (!array_key_exists($value, $groupedOptions)) {
                         continue;
                     }
 
@@ -182,9 +184,23 @@ class Select extends Field implements Contracts\CanDisableOptions, Contracts\Has
 
         $this->transformOptionsForJsUsing(static function (Select $component, array $options): array {
             return collect($options)
-                ->map(fn ($label, $value): array => is_array($label)
-                    ? ['label' => $value, 'choices' => $component->transformOptionsForJs($label)]
-                    : ['label' => $label, 'value' => strval($value), 'disabled' => $component->isOptionDisabled($value, $label)])
+                ->map(function ($label, $value) use ($component): array {
+                    if (is_array($label)) {
+                        return ['label' => $value, 'choices' => $component->transformOptionsForJs($label)];
+                    }
+
+                    $transformedOptions = [
+                        'label' => $label,
+                        'value' => strval($value),
+                        'disabled' => $component->isOptionDisabled($value, $label),
+                    ];
+
+                    if ($component->customPropertiesForJsUsing) {
+                        $transformedOptions['customProperties'] = $component->customPropertiesForJs($value, $label);
+                    }
+
+                    return $transformedOptions;
+                })
                 ->values()
                 ->all();
         });
@@ -267,7 +283,7 @@ class Select extends Field implements Contracts\CanDisableOptions, Contracts\Has
             return null;
         }
 
-        if (! $this->hasCreateOptionActionFormSchema()) {
+        if (!$this->hasCreateOptionActionFormSchema()) {
             return null;
         }
 
@@ -278,7 +294,7 @@ class Select extends Field implements Contracts\CanDisableOptions, Contracts\Has
                 ));
             })
             ->action(static function (Action $action, array $arguments, Select $component, array $data, ComponentContainer $form) {
-                if (! $component->getCreateOptionUsing()) {
+                if (!$component->getCreateOptionUsing()) {
                     throw new Exception("Select field [{$component->getStatePath()}] must have a [createOptionUsing()] closure set.");
                 }
 
@@ -297,7 +313,7 @@ class Select extends Field implements Contracts\CanDisableOptions, Contracts\Has
                 $component->state($state);
                 $component->callAfterStateUpdated();
 
-                if (! ($arguments['another'] ?? false)) {
+                if (!($arguments['another'] ?? false)) {
                     return;
                 }
 
@@ -421,7 +437,7 @@ class Select extends Field implements Contracts\CanDisableOptions, Contracts\Has
             return null;
         }
 
-        if (! $this->hasEditOptionActionFormSchema()) {
+        if (!$this->hasEditOptionActionFormSchema()) {
             return null;
         }
 
@@ -435,7 +451,7 @@ class Select extends Field implements Contracts\CanDisableOptions, Contracts\Has
             ->action(static function (Action $action, array $arguments, Select $component, array $data, ComponentContainer $form) {
                 $statePath = $component->getStatePath();
 
-                if (! $component->getUpdateOptionUsing()) {
+                if (!$component->getUpdateOptionUsing()) {
                     throw new Exception("Select field [{$statePath}] must have a [updateOptionUsing()] closure set.");
                 }
 
@@ -627,7 +643,7 @@ class Select extends Field implements Contracts\CanDisableOptions, Contracts\Has
      */
     public function getSearchResults(string $search): array
     {
-        if (! $this->getSearchResultsUsing) {
+        if (!$this->getSearchResultsUsing) {
             return [];
         }
 
@@ -687,6 +703,30 @@ class Select extends Field implements Contracts\CanDisableOptions, Contracts\Has
         }
 
         return $transformedOptions;
+    }
+
+    protected function customPropertiesForJs(string $value, string $label): array
+    {
+        $customPropertiesForJs = $this->evaluate(
+            $this->customPropertiesForJsUsing,
+            [
+                'value' => $value,
+                'label' => $label
+            ]
+        ) ?? [];
+
+        if ($customPropertiesForJs instanceof Arrayable) {
+            return $customPropertiesForJs->toArray();
+        }
+
+        return $customPropertiesForJs;
+    }
+
+    public function customPropertiesForJsUsing(?Closure $callback): static
+    {
+        $this->customPropertiesForJsUsing = $callback;
+
+        return $this;
     }
 
     public function isMultiple(): bool
@@ -751,7 +791,7 @@ class Select extends Field implements Contracts\CanDisableOptions, Contracts\Has
             }
 
             if (str_contains($relationshipTitleAttribute, '->')) {
-                if (! str_contains($relationshipTitleAttribute, ' as ')) {
+                if (!str_contains($relationshipTitleAttribute, ' as ')) {
                     $relationshipTitleAttribute .= " as {$relationshipTitleAttribute}";
                 }
             } else {
@@ -764,7 +804,7 @@ class Select extends Field implements Contracts\CanDisableOptions, Contracts\Has
         });
 
         $this->options(static function (Select $component) use ($modifyQueryUsing): ?array {
-            if (($component->isSearchable()) && ! $component->isPreloaded()) {
+            if (($component->isSearchable()) && !$component->isPreloaded()) {
                 return null;
             }
 
@@ -796,7 +836,7 @@ class Select extends Field implements Contracts\CanDisableOptions, Contracts\Has
             }
 
             if (str_contains($relationshipTitleAttribute, '->')) {
-                if (! str_contains($relationshipTitleAttribute, ' as ')) {
+                if (!str_contains($relationshipTitleAttribute, ' as ')) {
                     $relationshipTitleAttribute .= " as {$relationshipTitleAttribute}";
                 }
             } else {
@@ -851,7 +891,7 @@ class Select extends Field implements Contracts\CanDisableOptions, Contracts\Has
             /** @var BelongsTo $relationship */
             $relatedModel = $relationship->getResults();
 
-            if (! $relatedModel) {
+            if (!$relatedModel) {
                 return;
             }
 
@@ -865,7 +905,7 @@ class Select extends Field implements Contracts\CanDisableOptions, Contracts\Has
         $this->getOptionLabelUsing(static function (Select $component) {
             $record = $component->getSelectedRecord();
 
-            if (! $record) {
+            if (!$record) {
                 return null;
             }
 
@@ -919,7 +959,7 @@ class Select extends Field implements Contracts\CanDisableOptions, Contracts\Has
             $relationshipTitleAttribute = $component->getRelationshipTitleAttribute();
 
             if (str_contains($relationshipTitleAttribute, '->')) {
-                if (! str_contains($relationshipTitleAttribute, ' as ')) {
+                if (!str_contains($relationshipTitleAttribute, ' as ')) {
                     $relationshipTitleAttribute .= " as {$relationshipTitleAttribute}";
                 }
             } else {
@@ -943,21 +983,21 @@ class Select extends Field implements Contracts\CanDisableOptions, Contracts\Has
             static function (Select $component): bool {
                 $relationship = $component->getRelationship();
 
-                if (! (
+                if (!(
                     $relationship instanceof BelongsTo ||
                     $relationship instanceof \Znck\Eloquent\Relations\BelongsToThrough
                 )) {
                     return false;
                 }
 
-                return ! $component->isMultiple();
+                return !$component->isMultiple();
             },
         );
 
         $this->saveRelationshipsUsing(static function (Select $component, Model $record, $state) {
             $relationship = $component->getRelationship();
 
-            if (! $relationship instanceof BelongsToMany) {
+            if (!$relationship instanceof BelongsToMany) {
                 $relationship->associate($state);
 
                 return;
@@ -984,7 +1024,7 @@ class Select extends Field implements Contracts\CanDisableOptions, Contracts\Has
             $form->getRecord()?->update($data);
         });
 
-        $this->dehydrated(fn (Select $component): bool => ! $component->isMultiple());
+        $this->dehydrated(fn (Select $component): bool => !$component->isMultiple());
 
         return $this;
     }
@@ -1074,7 +1114,7 @@ class Select extends Field implements Contracts\CanDisableOptions, Contracts\Has
         $relationship = null;
 
         foreach (explode('.', $this->getRelationshipName()) as $nestedRelationshipName) {
-            if (! $record->isRelation($nestedRelationshipName)) {
+            if (!$record->isRelation($nestedRelationshipName)) {
                 $relationship = null;
 
                 break;
@@ -1126,7 +1166,7 @@ class Select extends Field implements Contracts\CanDisableOptions, Contracts\Has
     public function hasDynamicSearchResults(): bool
     {
         if ($this->hasRelationship() && empty($this->searchColumns)) {
-            return ! $this->isPreloaded();
+            return !$this->isPreloaded();
         }
 
         return $this->getSearchResultsUsing instanceof Closure;
