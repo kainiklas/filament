@@ -8,6 +8,7 @@ use Filament\Forms\Components\Actions\Action;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Support\Concerns\HasReorderAnimationDuration;
 use Filament\Support\Enums\ActionSize;
+use Filament\Support\Enums\IconPosition;
 use Filament\Support\Facades\FilamentIcon;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Collection;
@@ -30,6 +31,10 @@ class Repeater extends Field implements Contracts\CanConcealComponents, Contract
     use HasReorderAnimationDuration;
 
     protected string | Closure | null $addActionLabel = null;
+
+    protected string | Closure | null $addActionIcon = null;
+
+    protected IconPosition | string | Closure | null $addActionIconPosition = null;
 
     protected string | Closure | null $addBetweenActionLabel = null;
 
@@ -157,6 +162,8 @@ class Repeater extends Field implements Contracts\CanConcealComponents, Contract
     {
         $action = Action::make($this->getAddActionName())
             ->label(fn (Repeater $component) => $component->getAddActionLabel())
+            ->icon(fn (Repeater $component) => $component->getAddActionIcon())
+            ->iconPosition(fn (Repeater $component) => $component->getAddActionIconPosition())
             ->color('gray')
             ->action(function (Repeater $component): void {
                 $newUuid = $component->generateUuid();
@@ -589,6 +596,20 @@ class Repeater extends Field implements Contracts\CanConcealComponents, Contract
         return $this;
     }
 
+    public function addActionIcon(string | Closure | null $icon): static
+    {
+        $this->addActionIcon = $icon;
+
+        return $this;
+    }
+
+    public function addActionIconPosition(IconPosition | string | Closure | null $iconPosition): static
+    {
+        $this->addActionIconPosition = $iconPosition;
+
+        return $this;
+    }
+
     /**
      * @deprecated Use `addActionLabel()` instead.
      */
@@ -769,6 +790,16 @@ class Repeater extends Field implements Contracts\CanConcealComponents, Contract
         return $this->evaluate($this->addActionLabel) ?? __('filament-forms::components.repeater.actions.add.label', [
             'label' => Str::lcfirst($this->getLabel()),
         ]);
+    }
+
+    public function getAddActionIcon(): string
+    {
+        return $this->evaluate($this->addActionIcon) ?? '';
+    }
+
+    public function getAddActionIconPosition(): IconPosition | string
+    {
+        return $this->evaluate($this->addActionIconPosition) ?? IconPosition::Before;
     }
 
     public function isReorderable(): bool
